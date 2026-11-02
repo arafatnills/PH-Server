@@ -48,7 +48,7 @@ src/
 
 **Pages:**
 - `/login` - Login form with Google OAuth
-- `/register` - Patient registration
+- `/signup` - Patient registration
 - `/verify-email` - OTP verification
 - `/forgot-password` - Request password reset
 - `/reset-password` - Set new password with OTP

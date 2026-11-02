@@ -147,7 +147,7 @@ Base URL: `http://localhost:5000`
 | Method | Path                          | Auth required | Body                         |
 | ------ | ----------------------------- | ------------- | ----------------------------- |
 | `GET`  | `/`                            | –             | health check                  |
-| `POST` | `/api/v1/auth/register`        | –             | `name`, `email`, `password`   |
+| `POST` | `/api/v1/auth/signup`        | –             | `name`, `email`, `password`   |
 | `POST` | `/api/v1/auth/login`           | –             | `email`, `password`           |
 | `GET`  | `/api/v1/auth/me`              | yes           | –                              |
 | `POST` | `/api/v1/auth/refresh-token`   | –             | reads the `refreshToken` cookie |
@@ -163,7 +163,7 @@ Every response from `sendResponse` (i.e. everything except the root route) has t
 `register` and `login` return `accessToken` and `refreshToken` two ways: in the JSON body, and as cookies. **Use the JSON body.** The cookies are set with `sameSite: "none"` but `secure: false` — that combination is invalid under the cookie spec, and modern browsers silently drop the cookie rather than send it. Grab `data.accessToken` from the response and send it yourself:
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/auth/register \
+curl -X POST http://localhost:5000/api/v1/auth/signup \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Patient","email":"patient@example.com","password":"password123"}'
 

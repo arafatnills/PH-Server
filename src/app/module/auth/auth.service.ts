@@ -219,6 +219,99 @@ const verifyPatientEmail = async (payload: IVerifyEmailPayload) => {
   };
 };
 
+// resend registration OTP
+const resendRegistrationOtp = async (payload: { email: string }) => {
+  const email = payload.email.trim().toLowerCase();
+
+  const patientRegistrationKey = `patient-registration-data:${email}`;
+  const otpKey = `patient-registration-otp:${email}`;
+  const cooldownKey = `patient-registration-otp-cooldown:${email}`;
+
+  // 1. Already registered?
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (user) {
+    if (user.status === "BLOCKED") {
+      throw new AppError(httpStatus.FORBIDDEN, "User is Blocked");
+    }
+    if (user.isDeleted || user.status === "DELETED") {
+      throw new AppError(httpStatus.FORBIDDEN, "User is Deleted");
+    }
+    if (user.emailVerified) {
+      throw new AppError(httpStatus.CONFLICT, "Email Already Verified");
+    }
+  }
+
+  // 2. Pending registration must exist
+  const redisPatientData = await redisClient.get(patientRegistrationKey);
+
+  if (!redisPatientData) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      "Registration session expired. Please sign up again.",
+    );
+  }
+
+  const { name } = JSON.parse(redisPatientData) as IRegisterPatientPayload;
+
+  // 3. Server-side 60s cooldown (the real protection; the frontend timer is UX only)
+  const cooldownSeconds = 60;
+  const isAllowed = await redisClient.set(cooldownKey, "1", {
+    expiration: { type: "EX", value: cooldownSeconds },
+    condition: "NX", // set only if it doesn't exist
+  });
+
+  if (!isAllowed) {
+    const ttl = await redisClient.ttl(cooldownKey);
+    throw new AppError(
+      httpStatus.TOO_MANY_REQUESTS,
+      `Please wait ${ttl > 0 ? ttl : cooldownSeconds} seconds before requesting a new OTP.`,
+    );
+  }
+
+  // 4. New OTP, and extend both keys so the data doesn't expire before the new OTP
+  const expirationSeconds = 5 * 60;
+  const otpValue = crypto.randomInt(100000, 1000000).toString();
+
+  if (config.node_env === "development") {
+    console.log(`[dev] Resend OTP ${email} : ${otpValue}`);
+  }
+
+  await redisClient.set(otpKey, otpValue, {
+    expiration: { type: "EX", value: expirationSeconds },
+  });
+  await redisClient.expire(patientRegistrationKey, expirationSeconds);
+
+  // 5. Send email (same template as registration)
+  const templatePath = path.join(
+    process.cwd(),
+    "src/app/templates/registration-user-otp.ejs",
+  );
+
+  const html = await ejs.renderFile(templatePath, {
+    name,
+    email,
+    otp: otpValue,
+    expirationMinutes: expirationSeconds / 60,
+  });
+
+  try {
+    await transporter.sendMail({
+      from: config.email_sender,
+      to: email,
+      subject: "Email Verification",
+      html,
+    });
+  } catch (error) {
+    // email failed, so release the cooldown and let the user retry
+    await redisClient.del(cooldownKey);
+    throw new AppError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Failed to send OTP email. Please try again.",
+    );
+  }
+};
+
 const loginUser = async (payload: ILoginUserPayload) => {
   // throw new Error("Test Error");
 
@@ -666,4 +759,5 @@ export const AuthService = {
   googleLogin,
   forgotPassword,
   resetPassword,
+  resendRegistrationOtp
 };

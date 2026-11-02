@@ -2,38 +2,14 @@ import { Router } from "express";
 import { Role } from "../../../generated/prisma/enums";
 import { auth } from "../../middleware/checkAuth";
 import { validateRequest } from "../../middleware/validateRequest";
-import { loginRateLimit } from "../../ratelimit/rateLimit";
+import { loginRateLimit, resendOtpRateLimit } from "../../ratelimit/rateLimit";
 import { AuthController } from "./auth.controller";
 import { UserValidation } from "./auth.validation";
 
 const router = Router();
 
 router.post(
-  "/register",
-  // (req : Request, res : Response, next : NextFunction) => {
-
-  // 	try {
-  // 		// const payload = req.body ? req.body : {}
-  // 		const payload = req.body ?? {}
-
-  // 		const result = PatientValidation.PatientRegistrationZodSchema.safeParse(payload);
-
-  // 		if (!result.success) {
-  // 			console.log(result.error);
-  // 			console.log(result.error.issues);
-
-  // 			throw new Error(result.error.issues[0].message)
-  // 		}
-
-  // 		req.body = result.data
-
-  // 		next()
-  // 	} catch (error) {
-
-  // 		next(error)
-  // 	}
-  // },
-
+  "/signup",
   validateRequest(UserValidation.PatientRegistrationZodSchema),
   AuthController.registerPatient,
 );
@@ -42,6 +18,14 @@ router.post(
   validateRequest(UserValidation.PatientEmailVerifyZodSchema),
   AuthController.verifyPatientEmail,
 );
+// resent registration otp
+router.post(
+  "/resend-otp",
+  resendOtpRateLimit, // IP-based limit, see below
+  validateRequest(UserValidation.ResendOtpZodSchema),
+  AuthController.resendRegistrationOtp,
+);
+
 router.post(
   "/login",
   loginRateLimit,

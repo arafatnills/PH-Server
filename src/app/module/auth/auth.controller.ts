@@ -18,6 +18,18 @@ const registerPatient = catchAsync(async (req: Request, res: Response) => {
     data: null,
   });
 });
+// resent registration otp
+const resendRegistrationOtp = catchAsync(async (req, res) => {
+  await AuthService.resendRegistrationOtp(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "A new OTP has been sent to your email.",
+    data: null,
+  });
+});
+
 const verifyPatientEmail = catchAsync(async (req: Request, res: Response) => {
   const payload = req.body;
 
@@ -206,4 +218,5 @@ export const AuthController = {
   forgotPassword,
   resetPassword,
   logout,
+  resendRegistrationOtp
 };
